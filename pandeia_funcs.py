@@ -4,6 +4,8 @@ from matplotlib.patches import Ellipse
 import numpy as np
 import copy
 
+from dd.spectrum import bnu_wav_micron as bnu
+
 def scene_star(sptype, mag, id=1, band='johnson,v',
                name='generic source'):
     '''Get a star to put in a scene.
@@ -159,7 +161,7 @@ def add_ring(scene, r, dr, flux, temp, norm_wave, inc, pa,
         npt = int(2*np.pi*r / dr)
 
     if verb:
-        print('adding {}pt disk with r:{:g}", dr:{:g}", tot flux:{}mJy @ {}um, temp:{}K, incl:{}deg'.\
+        print('adding {}pt disk with r:{:g}", dr:{:g}", tot flux:{:g}mJy @ {}um, temp:{:g}K, incl:{}deg'.\
               format(npt, r, dr, flux, norm_wave, temp, inc))
 
     angs = np.deg2rad(np.linspace(0, 360, npt, endpoint=False))
@@ -175,7 +177,7 @@ def add_ring(scene, r, dr, flux, temp, norm_wave, inc, pa,
 
 
 def add_radial_profile(scene, rad, dr, flux, temp, norm_wave, inc, pa,
-                       verb=True):
+                       npt=None, verb=True):
     '''Add a radial profile to a scene.
     
     Parameters
@@ -204,9 +206,70 @@ def add_radial_profile(scene, rad, dr, flux, temp, norm_wave, inc, pa,
 
     for i,r in enumerate(rad):
         scene = add_ring(scene, r, dr[i], flux[i], temp[i], norm_wave,
-                         inc, pa, npt=None, verb=verb)
+                         inc, pa, npt=npt, verb=verb)
 
     return scene
+
+
+def scene_spectrum(scene, first_id=0, wave=None):
+    '''Get the spectrum of components in a scene.
+    
+    Parameters
+    ----------
+    scene : list
+        List of scene components.
+    first_id : int, optional
+        ID at which to start adding up spectrum.
+    wave : float or list
+        Wavelengths at which to compute spectrum.
+    '''
+
+    if wave is None:
+        wave = np.linspace(5,30,100)
+        flux = np.zeros(wave.shape)
+    else:
+        try:
+            flux = np.zeros(len(wave))
+        except:
+            flux = 0.0
+
+    for s in scene[first_id:]:
+        temp = s['spectrum']['sed']['temp']
+        f = bnu(wave, temp)
+        f *= s['spectrum']['normalization']['norm_flux'] / \
+                bnu(s['spectrum']['normalization']['norm_wave'], temp)
+        flux += f
+
+    return wave, flux
+
+
+def normalise_scene(scene, norm_flux, norm_wave=None, first_id=0):
+    '''Normalise the flux of a scene, by scaling everything.
+    
+    Parameters
+    ----------
+    scene : list
+        List of scene components.
+    norm_flux : float
+        Flux to normalise to in mJy.
+    norm_wave : float, optional
+        Wavelength at which normalisation applies, in micron.
+    first_id : int, optional
+        ID at which to start adding up spectrum.
+    '''
+
+    s = copy.deepcopy(scene)
+
+    if norm_wave is None:
+        norm_wave = s[first_id]['spectrum']['normalization']['norm_wave']
+
+    _, tot = scene_spectrum(s, first_id=first_id, wave=norm_wave)
+    norm = norm_flux / tot
+
+    for i in range(first_id, len(scene[first_id:])+1):
+        s[i]['spectrum']['normalization']['norm_flux'] *= norm
+
+    return s
 
 
 def plot_disk_scene(targ, file=None):
@@ -222,7 +285,8 @@ def plot_disk_scene(targ, file=None):
     stari = []
     for i,s in enumerate(targ):
         if s['shape']['geometry'] == 'flat':
-            col.append( s['spectrum']['normalization']['norm_flux'] )
+            col.append( s['spectrum']['normalization']['norm_flux'] /
+                        (s['shape']['major'] * s['shape']['minor']) )
         else:
             stari.append(i)
 
@@ -251,6 +315,7 @@ def plot_disk_scene(targ, file=None):
 
     if file is not None:
         fig.savefig(file)
+
 
 def show_images(ims, log=False, sub=None, title=None):
     '''Show lists of images.
