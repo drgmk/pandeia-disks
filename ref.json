@@ -1,1 +1,0 @@
-[{"position": {"orientation": 0.0, "x_offset": 0.0, "y_offset": 0.0}, "shape": {"geometry": "point"}, "id": 1, "spectrum": {"sed": {"key": "g0v", "sed_type": "phoenix"}, "lines": [], "name": "generic source", "normalization": {"norm_fluxunit": "vegamag", "type": "photsys", "norm_flux": 5, "bandpass": "johnson,v"}, "redshift": 0.0}}]
