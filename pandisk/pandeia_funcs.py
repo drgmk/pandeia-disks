@@ -2,6 +2,7 @@
 import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 import numpy as np
+import scipy.optimize
 import copy
 
 def bnu(wav_um,temp):
@@ -352,6 +353,14 @@ def plot_disk_scene(targ, file=None):
         fig.savefig(file)
 
 
+def best_sub(img, psf):
+    '''Find the best fit subtraction of an already centered PSF.'''
+    chi2 = lambda p: np.sum(img - p[0]*psf - p[1])**2
+    dc = np.nanmedian(img) + np.nanmedian(psf)
+    res = scipy.optimize.minimize(chi2, [1, dc], method='Nelder-Mead')
+    return res['x']
+    
+
 def show_images(ims, log=False, sub=None, title=None):
     '''Show lists of images.
     
@@ -366,7 +375,7 @@ def show_images(ims, log=False, sub=None, title=None):
     title : str, optional
         List of titles.
     '''
-    plt.figure(figsize=(17,3))
+    fig = plt.figure(figsize=(17,3))
     for i,im in enumerate(ims):
         plt.subplot(100 + 10*len(ims) +i+1)
         if sub is not None:
@@ -382,3 +391,5 @@ def show_images(ims, log=False, sub=None, title=None):
         if title is not None:
             plt.title(title[i])
         plt.colorbar()
+
+    return fig
