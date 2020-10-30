@@ -361,7 +361,22 @@ def best_sub(img, psf):
     return res['x']
     
 
-def show_images(ims, log=False, sub=None, title=None):
+def radial_mask(image, aspp=0.11, radius=5):
+    '''Return a mask, set to zero to ingore pixels within some radius.'''
+    nx = image.shape[1]
+    x = np.linspace(nx//2*aspp,-nx//2*aspp, nx )
+    xx,yy = np.meshgrid(x,x)
+    r = np.sqrt(xx*xx + yy*yy)
+    return r > radius
+
+
+def subtract_background(image, aspp=0.11, radius=5):
+    '''Subtract mean background level outside some radius in arcsec.'''
+    mask = radial_mask(image, aspp=aspp, radius=radius)
+    return image - np.nanmean(image[mask])
+
+
+def show_images(ims, log=False, sub=None, title=None, masks=None):
     '''Show lists of images.
     
     Parameters
@@ -375,21 +390,30 @@ def show_images(ims, log=False, sub=None, title=None):
     title : str, optional
         List of titles.
     '''
-    fig = plt.figure(figsize=(17,3))
+    if masks is None:
+        masks = [None for i in ims]
+
+    fig = plt.figure(figsize=(3.5*len(ims),3))
     for i,im in enumerate(ims):
         plt.subplot(100 + 10*len(ims) +i+1)
+        mask = masks[i]
+        if mask is None:
+            mask = np.ones_like(im)
         if sub is not None:
+#            mn = np.mean(im - sub[i])
+#            rms = np.std(im - sub[i])
             if log:
-                plt.imshow(np.log10(im - sub[i]))
+                plt.imshow(np.log10(im - sub[i])*mask)
             else:
-                plt.imshow(im - sub[i])
+                plt.imshow((im - sub[i])*mask)
         else:
             if log:
-                plt.imshow(np.log10(im))
+                plt.imshow(np.log10(im)*mask)
             else:                
-                plt.imshow(im)
+                plt.imshow(im*mask)
         if title is not None:
             plt.title(title[i])
         plt.colorbar()
 
+    fig.tight_layout()
     return fig
