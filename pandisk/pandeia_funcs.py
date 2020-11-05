@@ -135,6 +135,58 @@ def get_dot(id=0, x=0.0, y=0.0, name='dot', norm_wave=0.0, norm_flux=0.0,
     return s
 
 
+def _rebin(a, shape):
+    '''Rebin a 2d image, must be a multiple of the original size.'''
+    sh = shape[0],a.shape[0]//shape[0],shape[1],a.shape[1]//shape[1]
+    return a.reshape(sh).mean(-1).mean(1)
+
+def image2scene(scene, img, wave, aspp, lstar=1, rebin=None,
+                drange=1e3):
+    '''Return a scene made up of pixels from an image.
+    
+    Parameters
+    ----------
+    s : dict
+        Scene to add image to, could be empty (i.e. [])
+    img : ndarray
+        Image to convert.
+    wave : float
+        Wavelength of image.
+    aspp : float
+        Pixel scale to assume for image.
+    lstar : float
+        Stellar luminosity to assume to assign (blackbody) temperatures.
+    rebin : tuple, list
+        Shape to rebin image to, e.g. (40,40) -> (20,20).
+    drange : float
+        Dynamic range of output, anything below max/drange is ignored.
+    '''
+    
+    if rebin:
+        img = _rebin(img, rebin)
+
+    y, x = np.indices(img.shape) * aspp
+    x -= (img.shape[1]-1) / 2. * aspp
+    y -= (img.shape[0]-1) / 2. * aspp
+    r = np.sqrt( x**2 + y**2 )
+    dx = np.diff(x)[0,0]
+    temp = lambda x: 278.3 * lstar**0.25 / np.sqrt(x)
+    if len(scene) > 0:
+        ni = np.max([s['id'] for s in scene])
+    else:
+        ni = 1
+    for i in range(img.shape[0]):
+        for j in range(img.shape[1]):
+            if img[j,i] > np.max(img)/drange:
+                s = get_dot(id=ni, x=x[j,i], y=y[j,i], size=dx,
+                            norm_wave=wave, norm_flux=img[j,i],
+                            temp=temp(r[j,i]))
+                scene.append(s)
+                ni += 1
+
+    return scene
+    
+
 def add_ring(scene, r, dr, flux, temp, norm_wave, inc, pa,
              npt=None, verb=True):
     '''Add a disk to a scene, as a series of flat discs.
